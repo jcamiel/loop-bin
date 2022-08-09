@@ -1,7 +1,9 @@
 use clap::{Arg, ArgMatches};
 use colored::Colorize;
+use std::borrow::BorrowMut;
 use std::io::Write;
-use std::process::Command;
+use std::process::{exit, Command};
+use std::sync::{Arc, Mutex};
 use std::{io, thread, time};
 
 /// Loop a command.
@@ -12,33 +14,57 @@ fn main() {
     let while_ko = matches.is_present("while_ko");
     let iter = matches.get_one::<usize>("iter");
     let delay = matches.get_one::<usize>("delay");
-    let show_stat = matches.is_present("stats");
-
-    let mut executed = 0;
-    let mut executed_ok = 0;
+    let stats = !matches.is_present("no_stat");
     let cmd = args[0];
 
-    // The main loop of loop...
-    loop {
-        let output = Command::new(cmd)
-            .args(&args[1..])
-            .output()
-            .expect("failed to execute process");
+    let progress = Progress::new(cmd);
+    let mut progress = Arc::new(Mutex::new(progress));
 
-        io::stdout().write_all(&output.stdout).unwrap();
-        io::stderr().write_all(&output.stderr).unwrap();
-        executed += 1;
-
-        if output.status.success() {
-            executed_ok += 1;
-            if while_ko {
-                break;
+    // Handler to manage ctr+c interruptions.
+    {
+        let progress = progress.clone();
+        ctrlc::set_handler(move || {
+            if stats {
+                progress.lock().unwrap().print();
             }
-        } else if while_ok {
-            break;
+            exit(0);
+        })
+        .expect("Error setting Ctrl-C handler");
+    }
+
+    // The main loop of loop...
+    let progress = &mut *progress.borrow_mut();
+    loop {
+        let output = Command::new(cmd).args(&args[1..]).output();
+
+        match output {
+            Ok(output) => {
+                // This command iteration has been executed, we test the exit code.
+                io::stdout().write_all(&output.stdout).unwrap();
+                io::stderr().write_all(&output.stderr).unwrap();
+                if output.status.success() {
+                    progress.lock().unwrap().inc_ok();
+                    if while_ko {
+                        break;
+                    }
+                } else {
+                    progress.lock().unwrap().inc_ko();
+                    if while_ok {
+                        break;
+                    }
+                }
+            }
+            Err(_) => {
+                // This command iteration can't been executed.
+                eprintln!("{}: unable to execute {}", "warning".yellow().bold(), cmd);
+                progress.lock().unwrap().inc_ko();
+                if while_ok {
+                    break;
+                }
+            }
         }
         if let Some(iter) = iter {
-            if executed == *iter {
+            if progress.lock().unwrap().total() == *iter {
                 break;
             }
         }
@@ -48,27 +74,8 @@ fn main() {
         }
     }
 
-    if show_stat {
-        let executed_str = executed.to_string().cyan().bold();
-        let executed_ok_str = if executed_ok > 0 {
-            executed_ok.to_string().green().bold()
-        } else {
-            "0".bold()
-        };
-        let executed_ko = executed - executed_ok;
-        let executed_ko_str = if executed_ko > 0 {
-            executed_ko.to_string().red().bold()
-        } else {
-            "0".bold()
-        };
-
-        eprintln!(
-            "{} total: {} ok: {} ko: {}",
-            cmd.bold(),
-            executed_str,
-            executed_ok_str,
-            executed_ko_str
-        )
+    if stats {
+        progress.lock().unwrap().print();
     }
 }
 
@@ -109,11 +116,11 @@ fn parse_args() -> ArgMatches {
                 .help("Delay between iteration in milliseconds"),
         )
         .arg(
-            Arg::new("stats")
-                .long("stats")
+            Arg::new("no_stat")
+                .long("no-stat")
                 .required(false)
                 .takes_value(false)
-                .help("Display statistics at the end of execution"),
+                .help("Do not display statistics at the end of execution"),
         )
         .arg(
             Arg::new("CMD")
@@ -123,4 +130,60 @@ fn parse_args() -> ArgMatches {
         )
         .trailing_var_arg(true)
         .get_matches()
+}
+
+/// Represents a state of the loop.
+struct Progress {
+    ok: usize,
+    ko: usize,
+    name: String,
+}
+
+impl Progress {
+    /// Creates a new progress for the command named `name`.
+    fn new(name: &str) -> Progress {
+        Progress {
+            ok: 0,
+            ko: 0,
+            name: name.to_string(),
+        }
+    }
+
+    /// Increments the number of commands that have succeeded.
+    fn inc_ok(&mut self) {
+        self.ok += 1
+    }
+
+    /// Increments the number of commands that have failed.
+    fn inc_ko(&mut self) {
+        self.ko += 1
+    }
+
+    /// Returns the total of commands executed.
+    fn total(&self) -> usize {
+        self.ok + self.ko
+    }
+
+    /// Prints a summary of this progress.
+    fn print(&self) {
+        let total = self.total().to_string().cyan().bold();
+        let ok = if self.ok > 0 {
+            self.ok.to_string().green().bold()
+        } else {
+            "0".bold()
+        };
+        let ko = if self.ko > 0 {
+            self.ko.to_string().red().bold()
+        } else {
+            "0".bold()
+        };
+
+        eprintln!(
+            "\n{} total: {} ok: {} ko: {}",
+            self.name.bold(),
+            total,
+            ok,
+            ko
+        )
+    }
 }
