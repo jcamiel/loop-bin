@@ -1,0 +1,16 @@
+[package]
+name = "loop-bin"
+version = "0.1.1"
+edition = "2021"
+authors = ["Jean-Christophe Amiel <jeanchristophe.amiel@gmail.com>"]
+license = "Apache-2.0"
+description = "Run a command in loop, nothing else."
+repository = "https://github.com/jcamiel/loop-bin"
+
+[[bin]]
+name = "loop"
+path = "src/main.rs"
+
+[dependencies]
+clap = "3.2.16"
+colored = "2.0.0"
