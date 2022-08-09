@@ -1,4 +1,4 @@
-# `loop`
+# ♾️ `loop`
 
 Run a command in loop, nothing else.
 
