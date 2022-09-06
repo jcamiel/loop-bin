@@ -12,6 +12,6 @@ name = "loop"
 path = "src/main.rs"
 
 [dependencies]
-clap = "3.2.17"
+clap = "3.2.20"
 colored = "2.0.0"
 ctrlc = { version = "3.2.3", features = ["termination"] }
