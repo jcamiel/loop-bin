@@ -1,4 +1,4 @@
-use clap::{Arg, ArgMatches};
+use clap::{value_parser, Arg, ArgAction, ArgMatches};
 use colored::Colorize;
 use std::borrow::BorrowMut;
 use std::io::Write;
@@ -9,12 +9,12 @@ use std::{io, thread, time};
 /// Loop a command.
 fn main() {
     let matches = parse_args();
-    let args: Vec<&str> = matches.values_of("CMD").unwrap().collect();
-    let while_ok = matches.is_present("while_ok");
-    let while_ko = matches.is_present("while_ko");
+    let args: Vec<&String> = matches.get_many::<String>("CMD").unwrap().collect();
+    let while_ok = matches.get_one("while_ok") == Some(&true);
+    let while_ko = matches.get_one("while_ko") == Some(&true);
     let iter = matches.get_one::<usize>("iter");
     let delay = matches.get_one::<usize>("delay");
-    let stats = !matches.is_present("no_stat");
+    let stats = matches.get_one("no_stat") != Some(&true);
     let cmd = args[0];
 
     let progress = Progress::new(cmd);
@@ -88,7 +88,7 @@ fn parse_args() -> ArgMatches {
                 .short('i')
                 .long("iter")
                 .required(false)
-                .takes_value(true)
+                .num_args(1)
                 .value_parser(clap::value_parser!(usize))
                 .help("Number of iteration"),
         )
@@ -97,6 +97,7 @@ fn parse_args() -> ArgMatches {
                 .long("while-ok")
                 .required(false)
                 .conflicts_with("while_ko")
+                .action(ArgAction::SetTrue)
                 .help("Loop while exit code is success"),
         )
         .arg(
@@ -104,6 +105,7 @@ fn parse_args() -> ArgMatches {
                 .long("while-ko")
                 .required(false)
                 .conflicts_with("while_ok")
+                .action(ArgAction::SetTrue)
                 .help("Loop while exit code is failure"),
         )
         .arg(
@@ -111,7 +113,7 @@ fn parse_args() -> ArgMatches {
                 .short('d')
                 .long("delay")
                 .required(false)
-                .takes_value(true)
+                .num_args(1)
                 .value_parser(clap::value_parser!(usize))
                 .help("Delay between iteration in milliseconds"),
         )
@@ -119,13 +121,14 @@ fn parse_args() -> ArgMatches {
             Arg::new("no_stat")
                 .long("no-stat")
                 .required(false)
-                .takes_value(false)
+                .action(ArgAction::SetTrue)
                 .help("Do not display statistics at the end of execution"),
         )
         .arg(
             Arg::new("CMD")
                 .required(true)
-                .multiple_values(true)
+                .value_parser(value_parser!(String))
+                .num_args(1..)
                 .help("Command to execute"),
         )
         .trailing_var_arg(true)

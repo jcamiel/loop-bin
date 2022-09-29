@@ -12,7 +12,7 @@ name = "loop"
 path = "src/main.rs"
 
 [dependencies]
-clap = "3.2.22"
+clap = { version = "4.0.3", features = ["string"] }
 colored = "2.0.0"
 ctrlc = { version = "3.2.3", features = ["termination"] }
 
