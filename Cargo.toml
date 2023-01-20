@@ -12,9 +12,9 @@ name = "loop"
 path = "src/main.rs"
 
 [dependencies]
-clap = { version = "4.0.3", features = ["string"] }
+clap = { version = "4.1.1", features = ["string"] }
 colored = "2.0.0"
-ctrlc = { version = "3.2.3", features = ["termination"] }
+ctrlc = { version = "3.2.4", features = ["termination"] }
 
 [profile.release]
 lto = true          # Enable Link Time Optimization
